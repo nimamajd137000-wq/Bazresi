@@ -25,6 +25,9 @@ jobs:
       - name: Recreate Android Project Files
         run: flutter create --platforms=android .
 
+      - name: Restore pubspec.yaml from repository
+        run: git checkout pubspec.yaml
+
       - name: Get dependencies
         run: flutter pub get
 
