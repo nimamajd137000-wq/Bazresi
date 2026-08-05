@@ -1,539 +1,1134 @@
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:excel/excel.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:csv/csv.dart';
+import 'package:share_plus/share_plus.dart';
 
-void main() => runApp(const ActivityReportApp());
+void main() {
+runApp(const InspectionReportApp());
+}
 
-class ActivityReportApp extends StatelessWidget {
-  const ActivityReportApp({super.key});
+class InspectionReportApp extends StatelessWidget {
+const InspectionReportApp({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'گزارش فعالیت',
-      theme: ThemeData(
-        useMaterial3: true,
-        fontFamily: 'sans',
-        colorSchemeSeed: const Color(0xFF2457A6),
-        scaffoldBackgroundColor: const Color(0xFFF5F7FB),
-      ),
-      home: const HomePage(),
-    );
+@override
+Widget build(BuildContext context) {
+return MaterialApp(
+debugShowCheckedModeBanner: false,
+title: 'گزارشات مدیریت بازرسی',
+theme: ThemeData(
+useMaterial3: true,
+fontFamily: 'sans',
+colorScheme: ColorScheme.fromSeed(
+seedColor: const Color(0xFF123B5D),
+),
+scaffoldBackgroundColor: const Color(0xFFF4F7FA),
+),
+home: const LoginPage(),
+);
+}
+}
+
+// ------------------------------------------------------------
+// مدل فعالیت
+// ------------------------------------------------------------
+
+class ActivityItem {
+String title;
+String description;
+String date;
+String time;
+
+ActivityItem({
+required this.title,
+required this.description,
+required this.date,
+required this.time,
+});
+
+Map<String, dynamic> toMap() {
+return {
+'title': title,
+'description': description,
+'date': date,
+'time': time,
+};
+}
+
+factory ActivityItem.fromMap(Map<String, dynamic> map) {
+return ActivityItem(
+title: map['title']?.toString() ?? '',
+description: map['description']?.toString() ?? '',
+date: map['date']?.toString() ?? '',
+time: map['time']?.toString() ?? '',
+);
+}
+}
+
+// ------------------------------------------------------------
+// گزارش
+// ------------------------------------------------------------
+
+class Report {
+String id;
+String expertName;
+String personnelCode;
+String reportDate;
+List<ActivityItem> activities;
+String status;
+
+Report({
+required this.id,
+required this.expertName,
+required this.personnelCode,
+required this.reportDate,
+required this.activities,
+required this.status,
+});
+
+Map<String, dynamic> toMap() {
+return {
+'id': id,
+'expertName': expertName,
+'personnelCode': personnelCode,
+'reportDate': reportDate,
+'activities': activities.map((e) => e.toMap()).toList(),
+'status': status,
+};
+}
+
+factory Report.fromMap(Map<String, dynamic> map) {
+final rawActivities = map['activities'];
+
+```
+final List<ActivityItem> activities = [];
+
+if (rawActivities is List) {
+  for (final item in rawActivities) {
+    if (item is Map) {
+      activities.add(
+        ActivityItem.fromMap(
+          Map<String, dynamic>.from(item),
+        ),
+      );
+    }
   }
 }
 
-class Report {
-  final String id, expert, date, activity, description;
-  final int minutes;
+return Report(
+  id: map['id']?.toString() ?? '',
+  expertName: map['expertName']?.toString() ?? '',
+  personnelCode: map['personnelCode']?.toString() ?? '',
+  reportDate: map['reportDate']?.toString() ?? '',
+  activities: activities,
+  status: map['status']?.toString() ?? 'ارسال شده',
+);
+```
 
-  Report({
-    required this.id,
-    required this.expert,
-    required this.date,
-    required this.activity,
-    required this.description,
-    required this.minutes,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'expert': expert,
-        'date': date,
-        'activity': activity,
-        'description': description,
-        'minutes': minutes,
-      };
-
-  factory Report.fromJson(Map<String, dynamic> j) => Report(
-        id: j['id'] ?? '',
-        expert: j['expert'] ?? '',
-        date: j['date'] ?? '',
-        activity: j['activity'] ?? '',
-        description: j['description'] ?? '',
-        minutes: j['minutes'] ?? 0,
-      );
+}
 }
 
+// ------------------------------------------------------------
+// ذخیره‌سازی
+// ------------------------------------------------------------
+
+class StorageService {
+static const String reportsKey = 'reports';
+
+static Future<List<Report>> getReports() async {
+final prefs = await SharedPreferences.getInstance();
+final raw = prefs.getString(reportsKey);
+
+```
+if (raw == null || raw.isEmpty) {
+  return [];
+}
+
+try {
+  final decoded = jsonDecode(raw);
+
+  if (decoded is! List) {
+    return [];
+  }
+
+  return decoded
+      .whereType<Map>()
+      .map(
+        (e) => Report.fromMap(
+          Map<String, dynamic>.from(e),
+        ),
+      )
+      .toList();
+} catch (_) {
+  return [];
+}
+```
+
+}
+
+static Future<void> saveReports(List<Report> reports) async {
+final prefs = await SharedPreferences.getInstance();
+
+```
+final data = reports.map((e) => e.toMap()).toList();
+
+await prefs.setString(
+  reportsKey,
+  jsonEncode(data),
+);
+```
+
+}
+
+static Future<void> addReport(Report report) async {
+final reports = await getReports();
+reports.add(report);
+await saveReports(reports);
+}
+}
+
+// ------------------------------------------------------------
+// ورود
+// ------------------------------------------------------------
+
+class LoginPage extends StatefulWidget {
+const LoginPage({super.key});
+
+@override
+State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+final passwordController = TextEditingController();
+
+bool obscure = true;
+
+void login() {
+final password = passwordController.text.trim();
+
+```
+if (password == '1234') {
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const HomePage(),
+    ),
+  );
+  return;
+}
+
+ScaffoldMessenger.of(context).showSnackBar(
+  const SnackBar(
+    content: Text('رمز عبور اشتباه است'),
+  ),
+);
+```
+
+}
+
+@override
+Widget build(BuildContext context) {
+return Scaffold(
+body: Center(
+child: SingleChildScrollView(
+padding: const EdgeInsets.all(24),
+child: Card(
+elevation: 4,
+child: Padding(
+padding: const EdgeInsets.all(24),
+child: Column(
+mainAxisSize: MainAxisSize.min,
+children: [
+const Icon(
+Icons.admin_panel_settings,
+size: 70,
+color: Color(0xFF123B5D),
+),
+const SizedBox(height: 15),
+const Text(
+'گزارشات مدیریت بازرسی',
+style: TextStyle(
+fontSize: 24,
+fontWeight: FontWeight.bold,
+),
+),
+const SizedBox(height: 8),
+const Text('ورود به سامانه'),
+const SizedBox(height: 25),
+TextField(
+controller: passwordController,
+obscureText: obscure,
+decoration: InputDecoration(
+labelText: 'رمز عبور',
+prefixIcon: const Icon(Icons.lock),
+suffixIcon: IconButton(
+onPressed: () {
+setState(() {
+obscure = !obscure;
+});
+},
+icon: Icon(
+obscure
+? Icons.visibility
+: Icons.visibility_off,
+),
+),
+border: const OutlineInputBorder(),
+),
+onSubmitted: (_) => login(),
+),
+const SizedBox(height: 20),
+SizedBox(
+width: double.infinity,
+child: FilledButton.icon(
+onPressed: login,
+icon: const Icon(Icons.login),
+label: const Padding(
+padding: EdgeInsets.all(12),
+child: Text('ورود'),
+),
+),
+),
+const SizedBox(height: 10),
+const Text(
+'رمز پیش‌فرض: 1234',
+style: TextStyle(
+color: Colors.grey,
+),
+),
+],
+),
+),
+),
+),
+),
+);
+}
+}
+
+// ------------------------------------------------------------
+// صفحه اصلی
+// ------------------------------------------------------------
+
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
-  @override
-  State<HomePage> createState() => _HomePageState();
+const HomePage({super.key});
+
+@override
+State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  int tab = 0;
-  String expert = 'کارشناس نمونه';
-  List<String> activities = [
-    'بررسی پرونده',
-    'تنظیم گزارش',
-    'مکاتبات اداری',
-    'پاسخگویی',
-    'جلسه',
-    'بازدید',
-    'پیگیری پرونده',
-    'مطالعه و تحقیق',
-    'سایر',
-  ];
-  List<Report> reports = [];
+int index = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+final pages = const [
+DashboardPage(),
+ExpertPage(),
+ManagerPage(),
+StatisticsPage(),
+SettingsPage(),
+];
 
-  Future<void> _load() async {
-    final p = await SharedPreferences.getInstance();
-    final r = p.getStringList('reports') ?? [];
-    final a = p.getStringList('activities');
-    setState(() {
-      reports = r.map((x) => Report.fromJson(jsonDecode(x))).toList();
-      if (a != null && a.isNotEmpty) activities = a;
-    });
-  }
+final titles = const [
+'گزارشات مدیریت بازرسی',
+'ثبت گزارش کارشناس',
+'پنل مدیر',
+'آمار و نمودار',
+'تنظیمات',
+];
 
-  Future<void> _save() async {
-    final p = await SharedPreferences.getInstance();
-    await p.setStringList('reports', reports.map((x) => jsonEncode(x.toJson())).toList());
-    await p.setStringList('activities', activities);
-  }
+@override
+Widget build(BuildContext context) {
+return Scaffold(
+appBar: AppBar(
+title: Text(
+titles[index],
+style: const TextStyle(
+fontWeight: FontWeight.bold,
+),
+),
+centerTitle: true,
+),
+body: pages[index],
+bottomNavigationBar: NavigationBar(
+selectedIndex: index,
+onDestinationSelected: (value) {
+setState(() {
+index = value;
+});
+},
+destinations: const [
+NavigationDestination(
+icon: Icon(Icons.dashboard_outlined),
+selectedIcon: Icon(Icons.dashboard),
+label: 'خانه',
+),
+NavigationDestination(
+icon: Icon(Icons.person_outline),
+selectedIcon: Icon(Icons.person),
+label: 'کارشناس',
+),
+NavigationDestination(
+icon: Icon(Icons.manage_accounts_outlined),
+selectedIcon: Icon(Icons.manage_accounts),
+label: 'مدیر',
+),
+NavigationDestination(
+icon: Icon(Icons.bar_chart_outlined),
+selectedIcon: Icon(Icons.bar_chart),
+label: 'آمار',
+),
+NavigationDestination(
+icon: Icon(Icons.settings_outlined),
+selectedIcon: Icon(Icons.settings),
+label: 'تنظیمات',
+),
+],
+),
+);
+}
+}
 
-  void addReport() async {
-    String activity = activities.first;
-    final desc = TextEditingController();
-    final mins = TextEditingController(text: '60');
+// ------------------------------------------------------------
+// داشبورد
+// ------------------------------------------------------------
 
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('ثبت فعالیت'),
-        content: StatefulBuilder(
-          builder: (context, setD) => Column(
-            mainAxisSize: MainAxisSize.min,
+class DashboardPage extends StatelessWidget {
+const DashboardPage({super.key});
+
+@override
+Widget build(BuildContext context) {
+return FutureBuilder<List<Report>>(
+future: StorageService.getReports(),
+builder: (context, snapshot) {
+final reports = snapshot.data ?? [];
+
+```
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: const Color(0xFF123B5D),
+          ),
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              DropdownButtonFormField<String>(
-                value: activity,
-                decoration: const InputDecoration(labelText: 'نوع فعالیت'),
-                items: activities.map((x) => DropdownMenuItem(value: x, child: Text(x))).toList(),
-                onChanged: (v) => setD(() => activity = v!),
+              Text(
+                'سامانه گزارشات مدیریت بازرسی',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              TextField(controller: mins, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'مدت (دقیقه)')),
-              TextField(controller: desc, maxLines: 3, decoration: const InputDecoration(labelText: 'شرح فعالیت')),
+              SizedBox(height: 8),
+              Text(
+                'مدیریت، ثبت و تجمیع گزارش فعالیت کارشناسان',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 15,
+                ),
+              ),
             ],
           ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('انصراف')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('ثبت')),
-        ],
-      ),
-    );
-
-    if (ok == true) {
-      reports.add(Report(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
-        expert: expert,
-        date: DateFormat('yyyy-MM-dd').format(DateTime.now()),
-        activity: activity,
-        description: desc.text,
-        minutes: int.tryParse(mins.text) ?? 0,
-      ));
-      await _save();
-      setState(() {});
-    }
-  }
-
-  Future<void> exportReports() async {
-    final data = {
-      'format': 'activity_report_v1',
-      'expert': expert,
-      'createdAt': DateTime.now().toIso8601String(),
-      'reports': reports.map((x) => x.toJson()).toList(),
-    };
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/report_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.json');
-    await file.writeAsString(jsonEncode(data));
-    await Share.shareXFiles([XFile(file.path)], text: 'گزارش فعالیت $expert');
-  }
-
-  Future<void> importReports() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['json']);
-    if (result == null || result.files.single.path == null) return;
-    final text = await File(result.files.single.path!).readAsString();
-    final data = jsonDecode(text);
-    if (data['format'] != 'activity_report_v1') {
-      _msg('فرمت فایل معتبر نیست.');
-      return;
-    }
-    final incoming = (data['reports'] as List).map((x) => Report.fromJson(x)).toList();
-    final ids = reports.map((x) => x.id).toSet();
-    final fresh = incoming.where((x) => !ids.contains(x.id)).toList();
-    reports.addAll(fresh);
-    await _save();
-    setState(() {});
-    _msg('${fresh.length} گزارش جدید وارد شد.');
-  }
-
-
-  Future<void> exportManagerCsv() async {
-    final rows = <List<dynamic>>[
-      ['کارشناس', 'تاریخ', 'فعالیت', 'مدت (دقیقه)', 'شرح'],
-      ...reports.map((r) => [r.expert, r.date, r.activity, r.minutes, r.description]),
-    ];
-    final csv = const ListToCsvConverter().convert(rows);
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/manager_report_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv');
-    await file.writeAsString('\uFEFF$csv');
-    await Share.shareXFiles([XFile(file.path)], text: 'گزارش تجمیعی');
-  }
-
-  Future<void> showMonthlyReport() async {
-    String selectedMonth = DateFormat('yyyy-MM').format(DateTime.now());
-    String selectedExpert = 'همه';
-    final months = <String>{...reports.map((r) => r.date.substring(0, 7)), selectedMonth}.toList()..sort();
-    final experts = <String>{'همه', ...reports.map((r) => r.expert)}.toList();
-
-    await showDialog(
-      context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (context, setD) {
-          final filtered = reports.where((r) =>
-              r.date.startsWith(selectedMonth) &&
-              (selectedExpert == 'همه' || r.expert == selectedExpert)).toList();
-          final total = filtered.fold<int>(0, (a, r) => a + r.minutes);
-          final byActivity = <String, int>{};
-          final byExpert = <String, int>{};
-          for (final r in filtered) {
-            byActivity[r.activity] = (byActivity[r.activity] ?? 0) + r.minutes;
-            byExpert[r.expert] = (byExpert[r.expert] ?? 0) + r.minutes;
-          }
-          return AlertDialog(
-            title: const Text('گزارش ماهانه و تجمیعی'),
-            content: SizedBox(
-              width: 460,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      value: selectedMonth,
-                      decoration: const InputDecoration(labelText: 'ماه'),
-                      items: months.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
-                      onChanged: (v) => setD(() => selectedMonth = v!),
-                    ),
-                    DropdownButtonFormField<String>(
-                      value: selectedExpert,
-                      decoration: const InputDecoration(labelText: 'کارشناس'),
-                      items: experts.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                      onChanged: (v) => setD(() => selectedExpert = v!),
-                    ),
-                    const SizedBox(height: 12),
-                    ListTile(title: const Text('تعداد فعالیت'), trailing: Text('${filtered.length}')),
-                    ListTile(title: const Text('مجموع ساعات'), trailing: Text('${(total / 60).toStringAsFixed(1)}')),
-                    const Divider(),
-                    const Align(alignment: Alignment.centerRight, child: Text('تفکیک بر اساس کارشناس', style: TextStyle(fontWeight: FontWeight.bold))),
-                    ...byExpert.entries.map((e) => ListTile(dense: true, title: Text(e.key), trailing: Text('${(e.value / 60).toStringAsFixed(1)} ساعت'))),
-                    const Divider(),
-                    const Align(alignment: Alignment.centerRight, child: Text('تفکیک بر اساس فعالیت', style: TextStyle(fontWeight: FontWeight.bold))),
-                    ...byActivity.entries.map((e) => ListTile(dense: true, title: Text(e.key), trailing: Text('${(e.value / 60).toStringAsFixed(1)} ساعت'))),
-                  ],
-                ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: _DashboardCard(
+                title: 'گزارش‌ها',
+                value: reports.length.toString(),
+                icon: Icons.description,
               ),
             ),
-            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('بستن'))],
+            const SizedBox(width: 12),
+            Expanded(
+              child: _DashboardCard(
+                title: 'فعالیت‌ها',
+                value: reports
+                    .fold<int>(
+                      0,
+                      (sum, report) =>
+                          sum + report.activities.length,
+                    )
+                    .toString(),
+                icon: Icons.task_alt,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('نحوه استفاده'),
+            subtitle: const Text(
+              'کارشناس از بخش ثبت گزارش، فعالیت‌های روزانه خود را وارد و گزارش را ارسال می‌کند. مدیر می‌تواند گزارش‌ها را مشاهده و به Excel صادر کند.',
+            ),
+          ),
+        ),
+      ],
+    );
+  },
+);
+```
+
+}
+}
+
+class _DashboardCard extends StatelessWidget {
+final String title;
+final String value;
+final IconData icon;
+
+const _DashboardCard({
+required this.title,
+required this.value,
+required this.icon,
+});
+
+@override
+Widget build(BuildContext context) {
+return Card(
+child: Padding(
+padding: const EdgeInsets.all(18),
+child: Column(
+children: [
+Icon(
+icon,
+size: 36,
+color: const Color(0xFF123B5D),
+),
+const SizedBox(height: 8),
+Text(
+value,
+style: const TextStyle(
+fontSize: 25,
+fontWeight: FontWeight.bold,
+),
+),
+Text(title),
+],
+),
+),
+);
+}
+}
+
+// ------------------------------------------------------------
+// ثبت گزارش کارشناس
+// ------------------------------------------------------------
+
+class ExpertPage extends StatefulWidget {
+const ExpertPage({super.key});
+
+@override
+State<ExpertPage> createState() => _ExpertPageState();
+}
+
+class _ExpertPageState extends State<ExpertPage> {
+final expertNameController = TextEditingController();
+final personnelController = TextEditingController();
+
+final List<ActivityItem> activities = [];
+
+String activityTitle = 'بازرسی';
+final descriptionController = TextEditingController();
+
+final activityTitles = const [
+'بازرسی',
+'بازدید',
+'بررسی پرونده',
+'تنظیم گزارش',
+'جلسه',
+'مکاتبه اداری',
+'پاسخگویی',
+'پیگیری',
+'نظارت',
+'سایر',
+];
+
+void addActivity() {
+if (descriptionController.text.trim().isEmpty) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(
+content: Text('شرح فعالیت را وارد کنید'),
+),
+);
+return;
+}
+
+```
+final now = DateTime.now();
+
+final date = DateFormat(
+  'yyyy/MM/dd',
+).format(now);
+
+final time = DateFormat(
+  'HH:mm',
+).format(now);
+
+setState(() {
+  activities.add(
+    ActivityItem(
+      title: activityTitle,
+      description: descriptionController.text.trim(),
+      date: date,
+      time: time,
+    ),
+  );
+
+  descriptionController.clear();
+});
+```
+
+}
+
+Future<void> saveReport() async {
+if (expertNameController.text.trim().isEmpty ||
+personnelController.text.trim().isEmpty) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(
+content: Text('نام کارشناس و کد پرسنلی را وارد کنید'),
+),
+);
+return;
+}
+
+```
+if (activities.isEmpty) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('حداقل یک فعالیت ثبت کنید'),
+    ),
+  );
+  return;
+}
+
+final now = DateTime.now();
+
+final report = Report(
+  id: 'REP-${now.millisecondsSinceEpoch}',
+  expertName: expertNameController.text.trim(),
+  personnelCode: personnelController.text.trim(),
+  reportDate: DateFormat('yyyy/MM/dd').format(now),
+  activities: List.from(activities),
+  status: 'ارسال شده',
+);
+
+await StorageService.addReport(report);
+
+setState(() {
+  activities.clear();
+});
+
+if (!mounted) return;
+
+ScaffoldMessenger.of(context).showSnackBar(
+  SnackBar(
+    content: Text(
+      'گزارش با کد ${report.id} ارسال شد',
+    ),
+  ),
+);
+```
+
+}
+
+@override
+Widget build(BuildContext context) {
+return ListView(
+padding: const EdgeInsets.all(16),
+children: [
+const Text(
+'اطلاعات کارشناس',
+style: TextStyle(
+fontSize: 19,
+fontWeight: FontWeight.bold,
+),
+),
+const SizedBox(height: 12),
+TextField(
+controller: expertNameController,
+decoration: const InputDecoration(
+labelText: 'نام و نام خانوادگی',
+prefixIcon: Icon(Icons.person),
+border: OutlineInputBorder(),
+),
+),
+const SizedBox(height: 12),
+TextField(
+controller: personnelController,
+decoration: const InputDecoration(
+labelText: 'کد پرسنلی',
+prefixIcon: Icon(Icons.badge),
+border: OutlineInputBorder(),
+),
+),
+const SizedBox(height: 25),
+const Text(
+'ثبت فعالیت',
+style: TextStyle(
+fontSize: 19,
+fontWeight: FontWeight.bold,
+),
+),
+const SizedBox(height: 12),
+DropdownButtonFormField<String>(
+value: activityTitle,
+decoration: const InputDecoration(
+labelText: 'عنوان فعالیت',
+border: OutlineInputBorder(),
+),
+items: activityTitles
+.map(
+(title) => DropdownMenuItem(
+value: title,
+child: Text(title),
+),
+)
+.toList(),
+onChanged: (value) {
+if (value != null) {
+setState(() {
+activityTitle = value;
+});
+}
+},
+),
+const SizedBox(height: 12),
+TextField(
+controller: descriptionController,
+maxLines: 4,
+decoration: const InputDecoration(
+labelText: 'شرح و جزئیات فعالیت',
+border: OutlineInputBorder(),
+),
+),
+const SizedBox(height: 12),
+FilledButton.icon(
+onPressed: addActivity,
+icon: const Icon(Icons.add),
+label: const Text('افزودن فعالیت'),
+),
+const SizedBox(height: 20),
+if (activities.isNotEmpty)
+...activities.asMap().entries.map(
+(entry) {
+final number = entry.key + 1;
+final activity = entry.value;
+
+```
+          return Card(
+            child: ListTile(
+              leading: CircleAvatar(
+                child: Text(number.toString()),
+              ),
+              title: Text(
+                activity.title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: Text(
+                '${activity.description}\n${activity.date} - ${activity.time}',
+              ),
+              isThreeLine: true,
+              trailing: IconButton(
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () {
+                  setState(() {
+                    activities.removeAt(entry.key);
+                  });
+                },
+              ),
+            ),
           );
         },
       ),
-    );
-  }
-
-  Future<void> showRangeReport() async {
-    DateTime from = DateTime.now().subtract(const Duration(days: 30));
-    DateTime to = DateTime.now();
-    String expert = 'همه';
-    final experts = <String>{'همه', ...reports.map((r) => r.expert)}.toList();
-
-    await showDialog(
-      context: context,
-      builder: (_) => StatefulBuilder(builder: (context, setD) {
-        final filtered = reports.where((r) {
-          final d = DateTime.tryParse(r.date);
-          return d != null &&
-              !d.isBefore(DateTime(from.year, from.month, from.day)) &&
-              !d.isAfter(DateTime(to.year, to.month, to.day)) &&
-              (expert == 'همه' || r.expert == expert);
-        }).toList();
-        final total = filtered.fold<int>(0, (a, r) => a + r.minutes);
-        return AlertDialog(
-          title: const Text('گزارش بازه دلخواه'),
-          content: SizedBox(
-            width: 420,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              ListTile(
-                title: const Text('از تاریخ'),
-                subtitle: Text(DateFormat('yyyy-MM-dd').format(from)),
-                trailing: const Icon(Icons.calendar_month),
-                onTap: () async {
-                  final d = await showDatePicker(context: context, firstDate: DateTime(2020), lastDate: DateTime(2100), initialDate: from);
-                  if (d != null) setD(() => from = d);
-                },
-              ),
-              ListTile(
-                title: const Text('تا تاریخ'),
-                subtitle: Text(DateFormat('yyyy-MM-dd').format(to)),
-                trailing: const Icon(Icons.calendar_month),
-                onTap: () async {
-                  final d = await showDatePicker(context: context, firstDate: DateTime(2020), lastDate: DateTime(2100), initialDate: to);
-                  if (d != null) setD(() => to = d);
-                },
-              ),
-              DropdownButtonFormField<String>(
-                value: expert,
-                decoration: const InputDecoration(labelText: 'کارشناس'),
-                items: experts.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                onChanged: (v) => setD(() => expert = v!),
-              ),
-              const SizedBox(height: 12),
-              ListTile(title: const Text('تعداد فعالیت'), trailing: Text('${filtered.length}')),
-              ListTile(title: const Text('مجموع ساعات'), trailing: Text('${(total / 60).toStringAsFixed(1)}')),
-            ]),
-          ),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('بستن'))],
-        );
-      }),
-    );
-  }
-
-    final now = DateTime.now();
-    final month = DateFormat('yyyy-MM').format(now);
-    final monthly = reports.where((r) => r.date.startsWith(month)).toList();
-    final total = monthly.fold<int>(0, (a, r) => a + r.minutes);
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('گزارش ماه ${month.replaceAll('-', '/')}'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(title: const Text('تعداد فعالیت'), trailing: Text('${monthly.length}')),
-              ListTile(title: const Text('مجموع ساعات'), trailing: Text('${(total / 60).toStringAsFixed(1)}')),
-              const Divider(),
-              ...monthly.take(12).map((r) => ListTile(
-                dense: true,
-                title: Text(r.activity),
-                subtitle: Text('${r.expert} • ${r.minutes} دقیقه'),
-              )),
-              if (monthly.length > 12) Text('و ${monthly.length - 12} مورد دیگر...')
-            ],
-          ),
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('بستن'))],
+    const SizedBox(height: 15),
+    FilledButton.icon(
+      onPressed: saveReport,
+      icon: const Icon(Icons.send),
+      label: const Padding(
+        padding: EdgeInsets.all(13),
+        child: Text('ارسال گزارش به مدیر'),
       ),
-    );
+    ),
+  ],
+);
+```
+
+}
+}
+
+// ------------------------------------------------------------
+// پنل مدیر
+// ------------------------------------------------------------
+
+class ManagerPage extends StatefulWidget {
+const ManagerPage({super.key});
+
+@override
+State<ManagerPage> createState() => _ManagerPageState();
+}
+
+class _ManagerPageState extends State<ManagerPage> {
+String search = '';
+
+Future<void> exportExcel() async {
+final reports = await StorageService.getReports();
+
+```
+if (reports.isEmpty) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('گزارشی برای خروجی وجود ندارد'),
+    ),
+  );
+  return;
+}
+
+final excel = Excel.createExcel();
+
+final sheet = excel['گزارشات'];
+
+sheet.appendRow([
+  TextCellValue('کد گزارش'),
+  TextCellValue('نام کارشناس'),
+  TextCellValue('کد پرسنلی'),
+  TextCellValue('تاریخ گزارش'),
+  TextCellValue('شماره فعالیت'),
+  TextCellValue('عنوان فعالیت'),
+  TextCellValue('شرح فعالیت'),
+  TextCellValue('تاریخ فعالیت'),
+  TextCellValue('ساعت فعالیت'),
+  TextCellValue('وضعیت'),
+]);
+
+for (final report in reports) {
+  for (int i = 0; i < report.activities.length; i++) {
+    final activity = report.activities[i];
+
+    sheet.appendRow([
+      TextCellValue(report.id),
+      TextCellValue(report.expertName),
+      TextCellValue(report.personnelCode),
+      TextCellValue(report.reportDate),
+      IntCellValue(i + 1),
+      TextCellValue(activity.title),
+      TextCellValue(activity.description),
+      TextCellValue(activity.date),
+      TextCellValue(activity.time),
+      TextCellValue(report.status),
+    ]);
   }
+}
 
-  void _msg(String s) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s)));
+final bytes = excel.save();
 
-  @override
-  Widget build(BuildContext context) {
-    final manager = tab == 1;
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(manager ? 'پنل مدیر' : 'پنل کارشناس'),
-          centerTitle: true,
-        ),
-        body: manager ? ManagerPage(reports: reports, onImport: importReports, onActivities: _editActivities, onMonthly: showMonthlyReport, onRange: showRangeReport, onExport: exportManagerCsv) : ExpertPage(reports: reports, onAdd: addReport, onExport: exportReports),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: tab,
-          onDestinationSelected: (i) => setState(() => tab = i),
-          destinations: const [
-            NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'کارشناس'),
-            NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'مدیر'),
-          ],
-        ),
-      ),
-    );
-  }
+if (bytes == null) {
+  return;
+}
 
-  Future<void> _editActivities() async {
-    final c = TextEditingController();
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('دیکشنری فعالیت‌ها'),
-        content: SizedBox(
-          width: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ...activities.map((a) => ListTile(
-                    title: Text(a),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: () {
-                        setState(() => activities.remove(a));
-                        Navigator.pop(context);
-                        _editActivities();
-                      },
-                    ),
-                  )),
-              TextField(controller: c, decoration: const InputDecoration(labelText: 'فعالیت جدید')),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('بستن')),
-          FilledButton(
-            onPressed: () async {
-              if (c.text.trim().isNotEmpty) activities.add(c.text.trim());
-              await _save();
-              if (mounted) Navigator.pop(context);
-              setState(() {});
+final directory =
+    await getApplicationDocumentsDirectory();
+
+final file = File(
+  '${directory.path}/inspection_reports.xlsx',
+);
+
+await file.writeAsBytes(bytes, flush: true);
+
+await SharePlus.instance.share(
+  ShareParams(
+    files: [
+      XFile(file.path),
+    ],
+    text: 'خروجی گزارشات مدیریت بازرسی',
+  ),
+);
+```
+
+}
+
+@override
+Widget build(BuildContext context) {
+return FutureBuilder<List<Report>>(
+future: StorageService.getReports(),
+builder: (context, snapshot) {
+final allReports = snapshot.data ?? [];
+
+```
+    final reports = allReports.where((report) {
+      if (search.trim().isEmpty) {
+        return true;
+      }
+
+      final q = search.trim().toLowerCase();
+
+      return report.id.toLowerCase().contains(q) ||
+          report.expertName.toLowerCase().contains(q) ||
+          report.personnelCode.toLowerCase().contains(q);
+    }).toList();
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: TextField(
+            decoration: const InputDecoration(
+              labelText: 'جستجو',
+              hintText: 'کد گزارش، نام کارشناس یا کد پرسنلی',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (value) {
+              setState(() {
+                search = value;
+              });
             },
-            child: const Text('افزودن'),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class ExpertPage extends StatelessWidget {
-  final List<Report> reports;
-  final VoidCallback onAdd, onExport;
-  const ExpertPage({super.key, required this.reports, required this.onAdd, required this.onExport});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _card(context, 'ثبت فعالیت جدید', 'فعالیت روزانه را ثبت کنید', Icons.add_task, onAdd),
-        _card(context, 'خروجی گزارش', 'فایل گزارش را برای مدیر ارسال کنید', Icons.upload_file, onExport),
-        const SizedBox(height: 12),
-        Text('فعالیت‌های ثبت‌شده', style: Theme.of(context).textTheme.titleLarge),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 12,
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: exportExcel,
+              icon: const Icon(Icons.table_view),
+              label: const Text('خروجی Excel'),
+            ),
+          ),
+        ),
         const SizedBox(height: 8),
-        ...reports.reversed.map((r) => Card(
-              child: ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.assignment)),
-                title: Text(r.activity),
-                subtitle: Text('${r.date} • ${r.minutes} دقیقه\n${r.description}'),
-                isThreeLine: true,
-              ),
-            )),
+        Expanded(
+          child: reports.isEmpty
+              ? const Center(
+                  child: Text(
+                    'گزارشی ثبت نشده است',
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: reports.length,
+                  itemBuilder: (context, index) {
+                    final report = reports[index];
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      child: ExpansionTile(
+                        title: Text(
+                          report.expertName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${report.id}\n${report.reportDate} | ${report.activities.length} فعالیت',
+                        ),
+                        children: [
+                          ...report.activities.asMap().entries.map(
+                            (entry) {
+                              final activity = entry.value;
+
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  child: Text(
+                                    '${entry.key + 1}',
+                                  ),
+                                ),
+                                title: Text(
+                                  activity.title,
+                                ),
+                                subtitle: Text(
+                                  '${activity.description}\n${activity.date} - ${activity.time}',
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
       ],
     );
-  }
+  },
+);
+```
 
-  Widget _card(BuildContext c, String title, String sub, IconData icon, VoidCallback fn) => Card(
-        child: ListTile(
-          contentPadding: const EdgeInsets.all(16),
-          leading: CircleAvatar(radius: 26, child: Icon(icon)),
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Text(sub),
-          trailing: const Icon(Icons.chevron_left),
-          onTap: fn,
-        ),
-      );
+}
 }
 
-class ManagerPage extends StatelessWidget {
-  final List<Report> reports;
-  final VoidCallback onImport, onActivities, onMonthly, onRange, onExport;
-  const ManagerPage({super.key, required this.reports, required this.onImport, required this.onActivities, required this.onMonthly, required this.onRange, required this.onExport});
+// ------------------------------------------------------------
+// آمار
+// ------------------------------------------------------------
 
-  @override
-  Widget build(BuildContext context) {
-    final minutes = reports.fold<int>(0, (s, r) => s + r.minutes);
+class StatisticsPage extends StatelessWidget {
+const StatisticsPage({super.key});
+
+@override
+Widget build(BuildContext context) {
+return FutureBuilder<List<Report>>(
+future: StorageService.getReports(),
+builder: (context, snapshot) {
+final reports = snapshot.data ?? [];
+
+```
+    int totalActivities = 0;
+
+    final Map<String, int> activityCounts = {};
+
+    for (final report in reports) {
+      totalActivities += report.activities.length;
+
+      for (final activity in report.activities) {
+        activityCounts[activity.title] =
+            (activityCounts[activity.title] ?? 0) + 1;
+      }
+    }
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Row(
-          children: [
-            Expanded(child: _stat('گزارش‌ها', '${reports.length}', Icons.description)),
-            const SizedBox(width: 8),
-            Expanded(child: _stat('ساعت فعالیت', (minutes / 60).toStringAsFixed(1), Icons.timer)),
-          ],
+        _StatBox(
+          title: 'تعداد گزارش‌ها',
+          value: reports.length.toString(),
+          icon: Icons.description,
         ),
-        const SizedBox(height: 12),
-        Card(
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(18),
-            leading: const CircleAvatar(radius: 28, child: Icon(Icons.file_download)),
-            title: const Text('دریافت / ورود گزارش کارشناسان', style: TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: const Text('فایل JSON ارسالی کارشناس را انتخاب و وارد سیستم کنید'),
-            trailing: const Icon(Icons.chevron_left),
-            onTap: onImport,
-          ),
+        _StatBox(
+          title: 'تعداد کل فعالیت‌ها',
+          value: totalActivities.toString(),
+          icon: Icons.task,
         ),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.bar_chart),
-            title: const Text('گزارش ماهانه'),
-            subtitle: const Text('مشاهده خلاصه فعالیت‌های ماه جاری'),
-            trailing: const Icon(Icons.chevron_left),
-            onTap: onMonthly,
-          ),
+        _StatBox(
+          title: 'تعداد کارشناسان',
+          value: reports
+              .map((e) => e.personnelCode)
+              .toSet()
+              .length
+              .toString(),
+          icon: Icons.people,
         ),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.date_range),
-            title: const Text('گزارش بازه دلخواه'),
-            subtitle: const Text('انتخاب تاریخ شروع، پایان و کارشناس'),
-            trailing: const Icon(Icons.chevron_left),
-            onTap: onRange,
-          ),
-        ),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.table_view),
-            title: const Text('خروجی تجمیعی'),
-            subtitle: const Text('خروجی فایل قابل باز شدن در Excel'),
-            trailing: const Icon(Icons.chevron_left),
-            onTap: onExport,
-          ),
-        ),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.library_books),
-            title: const Text('مدیریت دیکشنری فعالیت‌ها'),
-            subtitle: const Text('افزودن یا حذف فعالیت‌های پیش‌فرض'),
-            trailing: const Icon(Icons.chevron_left),
-            onTap: onActivities,
+        const SizedBox(height: 20),
+        const Text(
+          'توزیع فعالیت‌ها',
+          style: TextStyle(
+            fontSize: 19,
+            fontWeight: FontWeight.bold,
           ),
         ),
         const SizedBox(height: 12),
-        Text('گزارش‌های واردشده', style: Theme.of(context).textTheme.titleLarge),
-        ...reports.reversed.map((r) => Card(
-              child: ListTile(
-                title: Text(r.activity),
-                subtitle: Text('${r.expert} • ${r.date} • ${r.minutes} دقیقه'),
+        if (activityCounts.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Text(
+                'هنوز فعالیتی ثبت نشده است.',
               ),
-            )),
+            ),
+          )
+        else
+          ...activityCounts.entries.map(
+            (entry) => Card(
+              child: ListTile(
+                title: Text(entry.key),
+                trailing: CircleAvatar(
+                  child: Text(
+                    entry.value.toString(),
+                  ),
+                ),
+              ),
+            ),
+          ),
       ],
     );
-  }
+  },
+);
+```
 
-  Widget _stat(String title, String value, IconData icon) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(children: [
-            Icon(icon, size: 28),
-            const SizedBox(height: 6),
-            Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            Text(title),
-          ]),
-        ),
-      );
+}
+}
+
+class _StatBox extends StatelessWidget {
+final String title;
+final String value;
+final IconData icon;
+
+const _StatBox({
+required this.title,
+required this.value,
+required this.icon,
+});
+
+@override
+Widget build(BuildContext context) {
+return Card(
+child: ListTile(
+leading: Icon(
+icon,
+size: 38,
+color: const Color(0xFF123B5D),
+),
+title: Text(title),
+trailing: Text(
+value,
+style: const TextStyle(
+fontSize: 25,
+fontWeight: FontWeight.bold,
+),
+),
+),
+);
+}
+}
+
+// ------------------------------------------------------------
+// تنظیمات
+// ------------------------------------------------------------
+
+class SettingsPage extends StatelessWidget {
+const SettingsPage({super.key});
+
+@override
+Widget build(BuildContext context) {
+return ListView(
+padding: const EdgeInsets.all(16),
+children: [
+Card(
+child: ListTile(
+leading: const Icon(Icons.lock),
+title: const Text('رمز ورود'),
+subtitle: const Text(
+'رمز فعلی نسخه آزمایشی: 1234',
+),
+),
+),
+Card(
+child: ListTile(
+leading: const Icon(Icons.info_outline),
+title: const Text('درباره برنامه'),
+subtitle: const Text(
+'سامانه گزارشات مدیریت بازرسی',
+),
+),
+),
+],
+);
+}
 }
