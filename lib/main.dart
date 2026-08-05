@@ -1,4 +1,3 @@
-import 'dart00:00';
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,55 +11,30 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  runApp(const InspectionReportApp());
+  runApp(const ExpertReporterApp());
 }
 
-class InspectionReportApp extends StatefulWidget {
-  const InspectionReportApp({super.key});
-
-  @override
-  State<InspectionReportApp> createState() => _InspectionReportAppState();
-}
-
-class _InspectionReportAppState extends State<InspectionReportApp> {
-  bool darkMode = false;
+class ExpertReporterApp extends StatelessWidget {
+  const ExpertReporterApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'گزارشات مدیریت بازرسی',
+      title: 'گزارش‌گیری کارشناسان',
+      locale: const Locale('fa', 'IR'),
+      supportedLocales: const [Locale('fa', 'IR')],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('fa', 'IR'),
-      ],
-      locale: const Locale('fa', 'IR'),
-      themeMode: darkMode ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeData(
+        fontFamily: 'Vazir',
+        primarySwatch: Colors.indigo,
         useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF2457A6),
-        scaffoldBackgroundColor: const Color(0xFFF4F7FB),
-        inputDecorationTheme: const InputDecorationTheme(
-          border: OutlineInputBorder(),
-        ),
       ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF2457A6),
-        brightness: Brightness.dark,
-      ),
-      home: HomePage(
-        darkMode: darkMode,
-        onDarkModeChanged: (value) {
-          setState(() {
-            darkMode = value;
-          });
-        },
-      ),
+      home: const MainScreen(),
     );
   }
 }
@@ -69,88 +43,74 @@ class Report {
   final String id;
   final String expertName;
   final String personnelCode;
-  final String activity;
-  final String description;
   final String date;
   final String time;
+  final String activity;
   final int minutes;
+  final String description;
 
-  const Report({
+  Report({
     required this.id,
     required this.expertName,
     required this.personnelCode,
-    required this.activity,
-    required this.description,
     required this.date,
     required this.time,
+    required this.activity,
     required this.minutes,
+    required this.description,
   });
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toMap() {
     return {
       'id': id,
       'expertName': expertName,
       'personnelCode': personnelCode,
-      'activity': activity,
-      'description': description,
       'date': date,
       'time': time,
+      'activity': activity,
       'minutes': minutes,
+      'description': description,
     };
   }
 
-  factory Report.fromJson(Map<String, dynamic> json) {
+  factory Report.fromMap(Map<String, dynamic> map) {
     return Report(
-      id: '${json['id'] ?? ''}',
-      expertName: '${json['expertName'] ?? ''}',
-      personnelCode: '${json['personnelCode'] ?? ''}',
-      activity: '${json['activity'] ?? ''}',
-      description: '${json['description'] ?? ''}',
-      date: '${json['date'] ?? ''}',
-      time: '${json['time'] ?? ''}',
-      minutes: int.tryParse('${json['minutes'] ?? 0}') ?? 0,
+      id: map['id'] ?? '',
+      expertName: map['expertName'] ?? '',
+      personnelCode: map['personnelCode'] ?? '',
+      date: map['date'] ?? '',
+      time: map['time'] ?? '',
+      activity: map['activity'] ?? '',
+      minutes: map['minutes'] ?? 0,
+      description: map['description'] ?? '',
     );
   }
 }
 
-class HomePage extends StatefulWidget {
-  final bool darkMode;
-  final ValueChanged<bool> onDarkModeChanged;
-
-  const HomePage({
-    super.key,
-    required this.darkMode,
-    required this.onDarkModeChanged,
-  });
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<MainScreen> createState() => _MainScreenState();
 }
 
-class _HomePageState extends State<HomePage> {
-  int tab = 0;
-
-  String expertName = 'کارشناس نمونه';
-  String personnelCode = '';
-
-  String expertPassword = '1234';
-  String managerPassword = '1234';
-
-  List<String> activities = [
-    'بررسی پرونده',
-    'تنظیم گزارش',
-    'مکاتبات اداری',
-    'پاسخگویی',
-    'جلسه',
-    'بازدید',
-    'پیگیری پرونده',
-    'مطالعه و تحقیق',
-    'سایر',
-  ];
-
+class _MainScreenState extends State<MainScreen> {
   List<Report> reports = [];
 
-  bool loaded = false;
+  final _nameController = TextEditingController();
+  final _codeController = TextEditingController();
+  final _activityController = TextEditingController();
+  final _minutesController = TextEditingController();
+  final _descController = TextEditingController();
+
+  final List<String> commonActivities = [
+    'پشتیبانی تلفنی',
+    'رفع اشکال سیستم',
+    'جلسه کاری',
+    'توسعه نرم‌افزار',
+    'مستندسازی',
+    'آموزش کاربر',
+  ];
 
   @override
   void initState() {
@@ -160,287 +120,128 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('reports');
 
-    final savedReports = prefs.getStringList('reports') ?? [];
-    final savedActivities = prefs.getStringList('activities');
+    if (raw != null) {
+      final List decoded = json.decode(raw);
 
-    setState(() {
-      reports = savedReports
-          .map((item) {
-            try {
-              return Report.fromJson(jsonDecode(item));
-            } catch (_) {
-              return null;
-            }
-          })
-          .whereType<Report>()
-          .toList();
+      setState(() {
+        reports = decoded.map((e) => Report.fromMap(e)).toList();
+      });
+    }
 
-      if (savedActivities != null && savedActivities.isNotEmpty) {
-        activities = savedActivities;
-      }
-
-      expertName = prefs.getString('expertName') ?? 'کارشناس نمونه';
-      personnelCode = prefs.getString('personnelCode') ?? '';
-      expertPassword = prefs.getString('expertPassword') ?? '1234';
-      managerPassword = prefs.getString('managerPassword') ?? '1234';
-
-      loaded = true;
-    });
+    _nameController.text = prefs.getString('expertName') ?? '';
+    _codeController.text = prefs.getString('personnelCode') ?? '';
   }
 
   Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
 
-    await prefs.setStringList(
-      'reports',
-      reports.map((r) => jsonEncode(r.toJson())).toList(),
-    );
+    final encoded = json.encode(reports.map((e) => e.toMap()).toList());
 
-    await prefs.setStringList('activities', activities);
-    await prefs.setString('expertName', expertName);
-    await prefs.setString('personnelCode', personnelCode);
-    await prefs.setString('expertPassword', expertPassword);
-    await prefs.setString('managerPassword', managerPassword);
+    await prefs.setString('reports', encoded);
+    await prefs.setString('expertName', _nameController.text);
+    await prefs.setString('personnelCode', _codeController.text);
   }
 
-  String _dateNow() {
-    return DateFormat('yyyy-MM-dd').format(DateTime.now());
-  }
+  void _addReport() {
+    final name = _nameController.text.trim();
+    final code = _codeController.text.trim();
+    final act = _activityController.text.trim();
+    final min = int.tryParse(_minutesController.text.trim()) ?? 0;
+    final desc = _descController.text.trim();
 
-  String _timeNow() {
-    return DateFormat('HH:mm').format(DateTime.now());
-  }
-
-  String _uniqueId() {
-    return '${DateTime.now().millisecondsSinceEpoch}_${reports.length + 1}';
-  }
-
-  void _message(String text) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
-    );
-  }
-
-  Future<bool> _passwordDialog({
-    required String title,
-    required String correctPassword,
-  }) async {
-    final controller = TextEditingController();
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(title),
-          content: TextField(
-            controller: controller,
-            obscureText: true,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'رمز عبور',
-              prefixIcon: Icon(Icons.lock_outline),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, false);
-              },
-              child: const Text('انصراف'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                  controller.text == correctPassword,
-                );
-              },
-              child: const Text('ورود'),
-            ),
-          ],
-        );
-      },
-    );
-
-    return result == true;
-  }
-
-  Future<void> _changeTab(int index) async {
-    if (index == 1) {
-      final ok = await _passwordDialog(
-        title: 'ورود به پنل مدیر',
-        correctPassword: managerPassword,
-      );
-
-      if (!ok) {
-        _message('رمز عبور مدیر صحیح نیست.');
-        return;
-      }
-    }
-
-    setState(() {
-      tab = index;
-    });
-  }
-
-  Future<void> addReport() async {
-    if (activities.isEmpty) {
-      _message('ابتدا حداقل یک عنوان فعالیت ایجاد کنید.');
+    if (name.isEmpty || code.isEmpty || act.isEmpty || min <= 0) {
+      _message('لطفاً اطلاعات ضروری را به درستی وارد کنید.');
       return;
     }
 
-    String selectedActivity = activities.first;
-    final descriptionController = TextEditingController();
-    final minutesController = TextEditingController(text: '60');
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('ثبت فعالیت جدید'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  initialValue: selectedActivity,
-                  decoration: const InputDecoration(
-                    labelText: 'عنوان فعالیت',
-                  ),
-                  items: activities
-                      .map(
-                        (activity) => DropdownMenuItem<String>(
-                          value: activity,
-                          child: Text(activity),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      selectedActivity = value;
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: minutesController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'مدت فعالیت به دقیقه',
-                    prefixIcon: Icon(Icons.timer_outlined),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: descriptionController,
-                  maxLines: 5,
-                  decoration: const InputDecoration(
-                    labelText: 'شرح و جزئیات فعالیت',
-                    prefixIcon: Icon(Icons.description_outlined),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, false);
-              },
-              child: const Text('انصراف'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, true);
-              },
-              child: const Text('ثبت فعالیت'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result != true) return;
-
-    final minutes = int.tryParse(minutesController.text.trim()) ?? 0;
-
-    if (minutes <= 0) {
-      _message('مدت فعالیت باید بیشتر از صفر باشد.');
-      return;
-    }
+    final now = DateTime.now();
+    final date = DateFormat('yyyy/MM/dd', 'fa').format(now);
+    final time = DateFormat('HH:mm').format(now);
 
     final report = Report(
-      id: _uniqueId(),
-      expertName: expertName,
-      personnelCode: personnelCode,
-      activity: selectedActivity,
-      description: descriptionController.text.trim(),
-      date: _dateNow(),
-      time: _timeNow(),
-      minutes: minutes,
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      expertName: name,
+      personnelCode: code,
+      date: date,
+      time: time,
+      activity: act,
+      minutes: min,
+      description: desc,
     );
 
     setState(() {
-      reports.add(report);
+      reports.insert(0, report);
     });
 
-    await _save();
+    _save();
 
-    _message('فعالیت با موفقیت ثبت شد.');
+    _minutesController.clear();
+    _descController.clear();
+
+    _message('فعالیت ثبت شد.');
   }
 
-  Future<void> exportExpertExcel() async {
+  void _delete(String id) {
+    setState(() {
+      reports.removeWhere((r) => r.id == id);
+    });
+
+    _save();
+
+    _message('گزارش حذف شد.');
+  }
+
+  void _message(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
+  }
+
+  Future<void> exportExcel() async {
     if (reports.isEmpty) {
-      _message('هنوز گزارشی برای خروجی وجود ندارد.');
+      _message('گزارشی برای خروجی وجود ندارد.');
       return;
     }
 
-    final rows = <List<dynamic>>[
+    final List<List<dynamic>> rows = [
       [
-        'کد یکتا',
+        'شناسه',
         'نام کارشناس',
         'کد پرسنلی',
         'تاریخ',
-        'ساعت',
-        'عنوان فعالیت',
+        'زمان',
+        'فعالیت',
         'مدت (دقیقه)',
-        'شرح و جزئیات',
+        'توضیحات'
       ],
-      ...reports.map(
-        (r) => [
-          r.id,
-          r.expertName,
-          r.personnelCode,
-          r.date,
-          r.time,
-          r.activity,
-          r.minutes,
-          r.description,
-        ],
-      ),
     ];
 
-    final csv = ListToCsvConverter().convert(rows);
+    for (var r in reports) {
+      rows.add([
+        r.id,
+        r.expertName,
+        r.personnelCode,
+        r.date,
+        r.time,
+        r.activity,
+        r.minutes,
+        r.description,
+      ]);
+    }
 
-    final directory = await getApplicationDocumentsDirectory();
+    final csv = const ListToCsvConverter().convert(rows);
 
-    final fileName =
-        'گزارش_${expertName}_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
+    final dir = await getTemporaryDirectory();
 
-    final file = File('${directory.path}/$fileName');
+    final path = '${dir.path}/expert_report_${DateTime.now().millisecondsSinceEpoch}.csv';
 
-    await file.writeAsString(
-      '\uFEFF$csv',
-      encoding: utf8,
-    );
+    final file = File(path);
 
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      text: 'گزارش فعالیت کارشناس $expertName',
-    );
+    await file.writeAsString(csv, encoding: utf8);
+
+    await Share.shareXFiles([XFile(path)], text: 'گزارش فعالیت کارشناس');
   }
 
   Future<void> importExpertExcel() async {
@@ -463,7 +264,7 @@ class _HomePageState extends State<HomePage> {
         encoding: utf8,
       );
 
-      final rows = ListToCsvConverter().convert(text);
+      final rows = const CsvToListConverter().convert(text);
 
       if (rows.length < 2) {
         _message('فایل گزارش خالی است.');
@@ -518,416 +319,183 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> exportManagerExcel() async {
-    if (reports.isEmpty) {
-      _message('گزارشی برای خروجی وجود ندارد.');
-      return;
-    }
-
-    final rows = <List<dynamic>>[
-      [
-        'کد یکتا',
-        'نام کارشناس',
-        'کد پرسنلی',
-        'تاریخ',
-        'ساعت',
-        'عنوان فعالیت',
-        'مدت (دقیقه)',
-        'شرح و جزئیات',
-      ],
-      ...reports.map(
-        (r) => [
-          r.id,
-          r.expertName,
-          r.personnelCode,
-          r.date,
-          r.time,
-          r.activity,
-          r.minutes,
-          r.description,
-        ],
-      ),
-    ];
-
-    final csv = ListToCsvConverter().convert(rows);
-
-    final directory = await getApplicationDocumentsDirectory();
-
-    final file = File(
-      '${directory.path}/گزارش_تجمیعی_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv',
-    );
-
-    await file.writeAsString(
-      '\uFEFF$csv',
-      encoding: utf8,
-    );
-
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      text: 'گزارش تجمیعی مدیریت بازرسی',
-    );
-  }
-
-  Future<void> editExpertInfo() async {
-    final nameController = TextEditingController(text: expertName);
-    final codeController = TextEditingController(text: personnelCode);
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('اطلاعات کارشناس'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'نام و نام خانوادگی',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: codeController,
-                decoration: const InputDecoration(
-                  labelText: 'کد پرسنلی',
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('انصراف'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('ذخیره'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result != true) return;
-
-    setState(() {
-      expertName = nameController.text.trim().isEmpty
-          ? 'کارشناس نمونه'
-          : nameController.text.trim();
-
-      personnelCode = codeController.text.trim();
-    });
-
-    await _save();
-
-    _message('اطلاعات کارشناس ذخیره شد.');
-  }
-
-  Future<void> manageActivities() async {
-    await showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final controller = TextEditingController();
-
-            return AlertDialog(
-              title: const Text('مدیریت عناوین فعالیت'),
-              content: SizedBox(
-                width: 450,
-                height: 420,
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: activities.length,
-                        itemBuilder: (_, index) {
-                          final activity = activities[index];
-
-                          return ListTile(
-                            title: Text(activity),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline),
-                              onPressed: () {
-                                setDialogState(() {
-                                  activities.removeAt(index);
-                                });
-
-                                setState(() {});
-                              },
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    TextField(
-                      controller: controller,
-                      decoration: const InputDecoration(
-                        labelText: 'عنوان فعالیت جدید',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    FilledButton.icon(
-                      onPressed: () {
-                        final value = controller.text.trim();
-
-                        if (value.isEmpty) return;
-
-                        if (activities.contains(value)) {
-                          _message('این عنوان قبلاً وجود دارد.');
-                          return;
-                        }
-
-                        setDialogState(() {
-                          activities.add(value);
-                        });
-
-                        setState(() {});
-                        controller.clear();
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text('افزودن عنوان'),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                FilledButton(
-                  onPressed: () async {
-                    await _save();
-
-                    if (mounted) {
-                      Navigator.pop(dialogContext);
-                    }
-                  },
-                  child: const Text('ذخیره و بستن'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<void> settingsPage() async {
-    final managerController = TextEditingController(text: managerPassword);
-    final expertController = TextEditingController(text: expertPassword);
-
-    await showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('تنظیمات'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SwitchListTile(
-                  title: const Text('حالت تاریک'),
-                  value: widget.darkMode,
-                  onChanged: widget.onDarkModeChanged,
-                ),
-                const Divider(),
-                TextField(
-                  controller: managerController,
-                  obscureText: true,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'رمز مدیر',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: expertController,
-                  obscureText: true,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'رمز کارشناس',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('انصراف'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                if (managerController.text.trim().isNotEmpty) {
-                  managerPassword = managerController.text.trim();
-                }
-                if (expertController.text.trim().isNotEmpty) {
-                  expertPassword = expertController.text.trim();
-                }
-
-                await _save();
-
-                if (mounted) {
-                  Navigator.pop(dialogContext);
-                  _message('تنظیمات با موفقیت ذخیره شد.');
-                }
-              },
-              child: const Text('ذخیره'),
-            ),
-          ],
-        );
-      },
-    );
+  int get totalMinutes {
+    return reports.fold(0, (sum, r) => sum + r.minutes);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!loaded) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(tab == 0 ? 'پنل کارشناس' : 'پنل مدیریت'),
+        title: const Text('ثبت گزارش کارشناسان'),
+        centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: settingsPage,
+            icon: const Icon(Icons.file_upload),
+            tooltip: 'ورود از فایل',
+            onPressed: importExpertExcel,
+          ),
+          IconButton(
+            icon: const Icon(Icons.share),
+            tooltip: 'خروجی اکسل / اشتراک',
+            onPressed: exportExcel,
           ),
         ],
       ),
-      body: tab == 0 ? _buildExpertPanel() : _buildManagerPanel(),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: tab,
-        onDestinationSelected: _changeTab,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'کارشناس',
+      body: Directionality(
+        textDirection: TextDirection.rtl,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Card(
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'مشخصات کارشناس',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'نام کارشناس',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _codeController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'کد پرسنلی',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'ثبت فعالیت جدید',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _activityController,
+                        decoration: const InputDecoration(
+                          labelText: 'عنوان فعالیت',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        children: commonActivities.map((act) {
+                          return ActionChip(
+                            label: Text(act),
+                            onPressed: () {
+                              _activityController.text = act;
+                            },
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _minutesController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'مدت زمان (دقیقه)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _descController,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                          labelText: 'توضیحات تکمیلی',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.add),
+                          label: const Text('ثبت گزارش'),
+                          onPressed: _addReport,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                color: Colors.indigo.shade50,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('تعداد فعالیت‌ها: ${reports.length}'),
+                      Text('مجموع زمان: $totalMinutes دقیقه'),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: reports.length,
+                itemBuilder: (context, index) {
+                  final item = reports[index];
+                  return Card(
+                    child: ListTile(
+                      title: Text(item.activity),
+                      subtitle: Text(
+                        '${item.expertName} | ${item.date} - ${item.time}\n'
+                        '${item.description}',
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('${item.minutes} د'),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _delete(item.id),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.admin_panel_settings_outlined),
-            selectedIcon: Icon(Icons.admin_panel_settings),
-            label: 'مدیر',
-          ),
-        ],
+        ),
       ),
-      floatingActionButton: tab == 0
-          ? FloatingActionButton.extended(
-              onPressed: addReport,
-              icon: const Icon(Icons.add),
-              label: const Text('ثبت فعالیت'),
-            )
-          : null,
-    );
-  }
-
-  Widget _buildExpertPanel() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          child: ListTile(
-            title: Text(expertName),
-            subtitle: Text('کد پرسنلی: $personnelCode'),
-            trailing: IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: editExpertInfo,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: exportExpertExcel,
-                icon: const Icon(Icons.upload_file),
-                label: const Text('خروجی Excel'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: importExpertExcel,
-                icon: const Icon(Icons.download),
-                label: const Text('ورود گزارش'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'لیست فعالیت‌های ثبت شده',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        const SizedBox(height: 8),
-        if (reports.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(32.0),
-            child: Center(child: Text('هنوز هیچ فعالیتی ثبت نشده است.')),
-          )
-        else
-          ...reports.reversed.map((r) => Card(
-                margin: const EdgeInsets.symmetric(vertical: 4),
-                child: ListTile(
-                  title: Text(r.activity),
-                  subtitle: Text('${r.description}\n${r.date} - ${r.time}'),
-                  trailing: Chip(label: Text('${r.minutes} دقیقه')),
-                ),
-              )),
-      ],
-    );
-  }
-
-  Widget _buildManagerPanel() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: manageActivities,
-                icon: const Icon(Icons.list_alt),
-                label: const Text('مدیریت عناوین'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: exportManagerExcel,
-                icon: const Icon(Icons.share),
-                label: const Text('خروجی تجمیعی'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'تمام گزارش‌های دریافت شده',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        const SizedBox(height: 8),
-        if (reports.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(32.0),
-            child: Center(child: Text('هیچ گزارشی یافت نشد.')),
-          )
-        else
-          ...reports.reversed.map((r) => Card(
-                margin: const EdgeInsets.symmetric(vertical: 4),
-                child: ListTile(
-                  title: Text('${r.expertName} (${r.activity})'),
-                  subtitle: Text('${r.description}\nتاریخ: ${r.date}'),
-                  trailing: Text('${r.minutes} دقیقه'),
-                ),
-              )),
-      ],
     );
   }
 }
