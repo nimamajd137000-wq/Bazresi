@@ -1,3 +1,4 @@
+import 'dart00:00';
 import 'dart:convert';
 import 'dart:io';
 
@@ -29,7 +30,6 @@ class _InspectionReportAppState extends State<InspectionReportApp> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'گزارشات مدیریت بازرسی',
-      // افزودن پشتیبانی کامل از راست‌به‌چپ (RTL) و زبان فارسی
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -423,7 +423,7 @@ class _HomePageState extends State<HomePage> {
       ),
     ];
 
-    final csv = const ListToCsvConverter().convert(rows);
+    final csv = ListToCsvConverter().convert(rows);
 
     final directory = await getApplicationDocumentsDirectory();
 
@@ -463,7 +463,7 @@ class _HomePageState extends State<HomePage> {
         encoding: utf8,
       );
 
-      final rows = const CsvToListConverter().convert(text);
+      final rows = ListToCsvConverter().convert(text);
 
       if (rows.length < 2) {
         _message('فایل گزارش خالی است.');
@@ -549,7 +549,7 @@ class _HomePageState extends State<HomePage> {
       ),
     ];
 
-    final csv = const ListToCsvConverter().convert(rows);
+    final csv = ListToCsvConverter().convert(rows);
 
     final directory = await getApplicationDocumentsDirectory();
 
