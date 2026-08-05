@@ -104,10 +104,9 @@ return {
 
 factory Report.fromMap(Map<String, dynamic> map) {
 final rawActivities = map['activities'];
-
-```
 final List<ActivityItem> activities = [];
 
+```
 if (rawActivities is List) {
   for (final item in rawActivities) {
     if (item is Map) {
@@ -229,6 +228,12 @@ ScaffoldMessenger.of(context).showSnackBar(
 );
 ```
 
+}
+
+@override
+void dispose() {
+passwordController.dispose();
+super.dispose();
 }
 
 @override
@@ -408,6 +413,11 @@ builder: (context, snapshot) {
 final reports = snapshot.data ?? [];
 
 ```
+    final totalActivities = reports.fold<int>(
+      0,
+      (sum, report) => sum + report.activities.length,
+    );
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -453,13 +463,7 @@ final reports = snapshot.data ?? [];
             Expanded(
               child: _DashboardCard(
                 title: 'فعالیت‌ها',
-                value: reports
-                    .fold<int>(
-                      0,
-                      (sum, report) =>
-                          sum + report.activities.length,
-                    )
-                    .toString(),
+                value: totalActivities.toString(),
                 icon: Icons.task_alt,
               ),
             ),
@@ -537,11 +541,11 @@ State<ExpertPage> createState() => _ExpertPageState();
 class _ExpertPageState extends State<ExpertPage> {
 final expertNameController = TextEditingController();
 final personnelController = TextEditingController();
+final descriptionController = TextEditingController();
 
 final List<ActivityItem> activities = [];
 
 String activityTitle = 'بازرسی';
-final descriptionController = TextEditingController();
 
 final activityTitles = const [
 'بازرسی',
@@ -569,13 +573,8 @@ return;
 ```
 final now = DateTime.now();
 
-final date = DateFormat(
-  'yyyy/MM/dd',
-).format(now);
-
-final time = DateFormat(
-  'HH:mm',
-).format(now);
+final date = DateFormat('yyyy/MM/dd').format(now);
+final time = DateFormat('HH:mm').format(now);
 
 setState(() {
   activities.add(
@@ -627,11 +626,11 @@ final report = Report(
 
 await StorageService.addReport(report);
 
+if (!mounted) return;
+
 setState(() {
   activities.clear();
 });
-
-if (!mounted) return;
 
 ScaffoldMessenger.of(context).showSnackBar(
   SnackBar(
@@ -642,6 +641,14 @@ ScaffoldMessenger.of(context).showSnackBar(
 );
 ```
 
+}
+
+@override
+void dispose() {
+expertNameController.dispose();
+personnelController.dispose();
+descriptionController.dispose();
+super.dispose();
 }
 
 @override
@@ -799,7 +806,6 @@ if (reports.isEmpty) {
 }
 
 final excel = Excel.createExcel();
-
 final sheet = excel['گزارشات'];
 
 sheet.appendRow([
@@ -840,14 +846,16 @@ if (bytes == null) {
   return;
 }
 
-final directory =
-    await getApplicationDocumentsDirectory();
+final directory = await getApplicationDocumentsDirectory();
 
 final file = File(
   '${directory.path}/inspection_reports.xlsx',
 );
 
-await file.writeAsBytes(bytes, flush: true);
+await file.writeAsBytes(
+  bytes,
+  flush: true,
+);
 
 await SharePlus.instance.share(
   ShareParams(
@@ -991,7 +999,6 @@ final reports = snapshot.data ?? [];
 
 ```
     int totalActivities = 0;
-
     final Map<String, int> activityCounts = {};
 
     for (final report in reports) {
